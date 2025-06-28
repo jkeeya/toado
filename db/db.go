@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"toado/models"
 	. "toado/models"
 
 	sqlite "gorm.io/driver/sqlite"
@@ -35,6 +36,14 @@ type SQLiteTaskRepository struct {
 // Реализация TaskRepository
 func (r SQLiteTaskRepository) AddTask(task *Task) error {
 	return r.DB.Create(task).Error
+}
+
+func (r SQLiteTaskRepository) MarkDone(id uint) error {
+	// TODO: добавить обработку ситуации, когда строка по какой-то причине не найдена
+	return r.DB.Model(&models.Task{}).Where("id = ?", 1).Updates(models.Task{
+		Name: "Новое название задачи",
+		Done: true,
+	}).Error
 }
 
 func (r *SQLiteTaskRepository) DeleteTask(id uint) error {
