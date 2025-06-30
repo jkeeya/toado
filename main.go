@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"toado/db"
-	. "toado/interfaces"
-	"toado/models"
+
+	"github.com/jkeeya/toado/db"
+	. "github.com/jkeeya/toado/interfaces"
+	"github.com/jkeeya/toado/models"
 )
 
 func main() {
@@ -84,6 +85,7 @@ func main() {
 				if task.Done {
 					status = "выполнено"
 				}
+				// TODO: не нрав.. А если изменятся поля? Надо стандартизировать
 				fmt.Printf("ID: %d, Задача: %s, Срок: %s, Статус: %s\n",
 					task.ID, task.Name, task.ExpDate, status)
 			}

@@ -1,7 +1,7 @@
 package interfaces
 
 import (
-	. "toado/models"
+	. "github.com/jkeeya/toado/models"
 )
 
 type TaskRepository interface {
