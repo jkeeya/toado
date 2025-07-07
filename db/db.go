@@ -49,8 +49,12 @@ func (r *SQLiteTaskRepository) DeleteTask(id uint) error {
 	return r.DB.Delete(&Task{}, id).Error
 }
 
-func (r *SQLiteTaskRepository) GetTasks() ([]Task, error) {
+func (r *SQLiteTaskRepository) GetTasks() []Task {
 	var tasks []Task
 	err := r.DB.Find(&tasks).Error
-	return tasks, err
+	if err != nil {
+		return nil
+	} else {
+		return tasks
+	}
 }

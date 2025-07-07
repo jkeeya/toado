@@ -2,8 +2,6 @@ module github.com/jkeeya/toado
 
 go 1.24.4
 
-replace github.com/username/repo => ./toado
-
 require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	gorm.io/driver/sqlite v1.6.0
