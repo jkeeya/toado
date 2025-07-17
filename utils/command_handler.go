@@ -18,6 +18,8 @@ func CommandHandler(repository TaskRepository, user_input string) error {
 	}
 
 	switch command {
+	case 0:
+		fmt.Println("Эм")
 	case 1:
 		var task_name, task_date string
 		fmt.Println("Введите задачу:")
