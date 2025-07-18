@@ -14,14 +14,14 @@ import (
 )
 
 type listItem struct {
-	Title       string
-	Description string
-	Action      func() tea.Cmd
+	title       string
+	description string
+	action      func() tea.Cmd
 }
 
-// func (i listItem) Title() string       { return i.Title }
-// func (i listItem) Description() string { return i.Description }
-func (i listItem) FilterValue() string { return i.Title }
+func (i listItem) Title() string       { return i.title }
+func (i listItem) Description() string { return i.description }
+func (i listItem) FilterValue() string { return i.title }
 
 type model struct {
 	app      cfg.App
@@ -38,19 +38,22 @@ type model struct {
 }
 
 func NewTeaModel(app cfg.App) *model {
-	// Вынести инициализацию меню отдельно
+	ti1 := textinput.New()
+	ti2 := textinput.New()
+
+	// TODO: Вынести инициализацию меню отдельно
 	items := []list.Item{
 		listItem{
-			Title:       "Добавить задачу",
-			Description: "Добавить задачу",
-			Action: func() tea.Cmd {
+			title:       "Добавить задачу",
+			description: "Добавить задачу",
+			action: func() tea.Cmd {
 				return requestTaskInput()
 			},
 		},
 		listItem{
-			Title:       "Удалить задачу",
-			Description: "Удалить задачу",
-			Action: func() tea.Cmd {
+			title:       "Удалить задачу",
+			description: "Удалить задачу",
+			action: func() tea.Cmd {
 				return requestTaskDelete()
 			},
 		},
@@ -61,11 +64,11 @@ func NewTeaModel(app cfg.App) *model {
 
 	taskList := app.Repository.GetTasks()
 	return &model{
-		app:      app,
-		taskList: taskList,
-		options:  options,
-		//lastResult: "",
-		//UserInput:  "",
+		app:           app,
+		taskList:      taskList,
+		options:       options,
+		taskNameInput: ti1,
+		deadlineInput: ti2,
 	}
 }
 
@@ -111,13 +114,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					})
 					m.taskNameInput.Reset()
 					m.deadlineInput.Reset()
+					// TODO: ??????
+					m.taskNameInput.Blur()
+					m.deadlineInput.Blur()
 				}
 			}
 		} else {
 			switch msg.Type {
 			case tea.KeyEnter:
 				selectedItem := m.options.SelectedItem().(listItem)
-				return m, selectedItem.Action()
+				cmd = selectedItem.action()
+				return m, cmd
 
 			}
 
@@ -127,6 +134,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.taskNameInput.Focus()
 		return m, nil
 	}
+	if !m.isAwaitingInput {
+		m.options, cmd = m.options.Update(msg)
+	} else { // TODO: что за пиздец можно оптимальнее?
+		if m.currentInput == 0 {
+			m.taskNameInput, cmd = m.taskNameInput.Update(msg)
+		} else {
+			m.deadlineInput, cmd = m.deadlineInput.Update(msg)
+		}
+	}
+
 	return m, cmd
 }
 
