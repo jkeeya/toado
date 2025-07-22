@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -10,7 +12,7 @@ import (
 
 	"github.com/jkeeya/toado/cfg"
 	. "github.com/jkeeya/toado/models"
-	// "github.com/jkeeya/toado/utils"
+	"github.com/jkeeya/toado/utils"
 )
 
 type listItem struct {
@@ -28,18 +30,23 @@ type model struct {
 	taskList []Task     // Текущий список задач
 	options  list.Model // Список доступных действий
 
-	taskNameInput textinput.Model
-	deadlineInput textinput.Model
-	currentInput  int // Индекс текущего активного поля (0 - название, 1 - дедлайн)
-	//lastResult string // Результат последнего действа
-	//UserInput  string // Вводимая юзером команда
+	taskNameInput     textinput.Model
+	deadlineInput     textinput.Model
+	taskToDeleteInput textinput.Model
+
+	currentInput    int  // Индекс текущего активного поля (0 - название, 1 - дедлайн)
 	isAwaitingInput bool // Флаг ожидания дополнительного ввода
 
 }
 
+func (m *model) updateTaskList() {
+	m.taskList = m.app.Repository.GetTasks()
+}
+
 func NewTeaModel(app cfg.App) *model {
-	ti1 := textinput.New()
-	ti2 := textinput.New()
+	taskNameInput := textinput.New()
+	deadlineInput := textinput.New()
+	taskToDeleteInput := textinput.New()
 
 	// TODO: Вынести инициализацию меню отдельно
 	items := []list.Item{
@@ -63,12 +70,14 @@ func NewTeaModel(app cfg.App) *model {
 	options.Title = "Меню"
 
 	taskList := app.Repository.GetTasks()
+
 	return &model{
-		app:           app,
-		taskList:      taskList,
-		options:       options,
-		taskNameInput: ti1,
-		deadlineInput: ti2,
+		app:               app,
+		taskList:          taskList,
+		options:           options,
+		taskNameInput:     taskNameInput,
+		deadlineInput:     deadlineInput,
+		taskToDeleteInput: taskToDeleteInput,
 	}
 }
 
@@ -87,23 +96,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		// Режим ввода: работа с текстовыми полями
 		if m.isAwaitingInput {
 			switch msg.Type {
 			case tea.KeyTab, tea.KeyShiftTab:
-				// Переключение между полями
-				if msg.Type == tea.KeyTab {
-					m.currentInput = (m.currentInput + 1) % 2
-				} else if msg.Type == tea.KeyShiftTab {
-					m.currentInput = (m.currentInput - 1 + 2) % 2
-				}
+				if !m.taskToDeleteInput.Focused() {
+					// Переключение между полями
+					if msg.Type == tea.KeyTab {
+						m.currentInput = (m.currentInput + 1) % 2
+					} else if msg.Type == tea.KeyShiftTab {
+						m.currentInput = (m.currentInput - 1 + 2) % 2
+					}
 
-				m.taskNameInput.Blur()
-				m.deadlineInput.Blur()
-				if m.currentInput == 0 {
-					m.taskNameInput.Focus()
-				} else {
-					m.deadlineInput.Focus()
+					m.taskNameInput.Blur()
+					m.deadlineInput.Blur()
+					if m.currentInput == 0 {
+						m.taskNameInput.Focus()
+					} else {
+						m.deadlineInput.Focus()
+					}
 				}
+			// Добавление задачи
 			case tea.KeyEnter:
 				if m.currentInput == 1 { // Последнее поле
 					m.isAwaitingInput = false
@@ -112,13 +125,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						Name:    m.taskNameInput.Value(),
 						ExpDate: m.deadlineInput.Value(),
 					})
+					m.updateTaskList()
 					m.taskNameInput.Reset()
 					m.deadlineInput.Reset()
-					// TODO: ??????
 					m.taskNameInput.Blur()
 					m.deadlineInput.Blur()
 				}
+				// Удаление задачи
+				if m.taskToDeleteInput.Focused() {
+					taskID := m.taskToDeleteInput.Value()
+					id, err := strconv.ParseUint(strings.TrimSpace(taskID), 10, 64)
+					if err != nil {
+						return m, nil
+					}
+					m.app.Repository.DeleteTask(uint(id))
+					m.updateTaskList()
+					m.isAwaitingInput = false
+					m.taskToDeleteInput.Reset()
+					m.taskToDeleteInput.Blur()
+				}
+
 			}
+
+			// Работа с меню
 		} else {
 			switch msg.Type {
 			case tea.KeyEnter:
@@ -129,34 +158,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		}
+
 	case requestTaskInputMsg:
 		m.isAwaitingInput = true
 		m.taskNameInput.Focus()
 		return m, nil
+	case requestTaskDeleteMsg:
+		m.isAwaitingInput = true
+		m.taskToDeleteInput.Focus()
+		return m, nil
 	}
-	if !m.isAwaitingInput {
-		m.options, cmd = m.options.Update(msg)
-	} else { // TODO: что за пиздец можно оптимальнее?
-		if m.currentInput == 0 {
-			m.taskNameInput, cmd = m.taskNameInput.Update(msg)
-		} else {
-			m.deadlineInput, cmd = m.deadlineInput.Update(msg)
-		}
-	}
+
+	m.options, cmd = m.options.Update(msg)
+	m.taskNameInput, cmd = m.taskNameInput.Update(msg)
+	m.deadlineInput, cmd = m.deadlineInput.Update(msg)
+	m.taskToDeleteInput, cmd = m.taskToDeleteInput.Update(msg)
 
 	return m, cmd
 }
 
 func (m model) View() string {
 	if m.isAwaitingInput {
-		// Отображение текстовых полей
-		view := "Введите данные для задачи:\n\n"
-		view += "Название задачи:\n" + m.taskNameInput.View() + "\n\n"
-		view += "Дедлайн:\n" + m.deadlineInput.View() + "\n\n"
-		view += "Используйте Tab для переключения между полями. Нажмите Enter для завершения."
-		return view
+		if m.taskToDeleteInput.Focused() {
+			view := "Введите ID задачи для удаления:" + m.taskToDeleteInput.View() + "\n\n"
+			return utils.TasksToString(m.taskList) + view
+		} else {
+			view := "Название задачи:\n" + m.taskNameInput.View() + "\n\n"
+			view += "Дедлайн:\n" + m.deadlineInput.View() + "\n\n"
+			view += "Используйте Tab для переключения между полями. Нажмите Enter для завершения."
+			return view
+		}
 	}
 
 	// Отображение списка
-	return m.options.View()
+	return utils.TasksToString(m.taskList) + m.options.View()
 }

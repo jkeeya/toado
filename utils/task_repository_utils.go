@@ -13,11 +13,11 @@ import (
 func TasksToString(tasks []Task) string {
 	var result string
 	for _, task := range tasks {
-		status := cfg.Message["completed"]
+		status := cfg.Message["not_completed"]
 		if task.Done {
-			status = cfg.Message["not_completed"]
+			status = cfg.Message["completed"]
 		}
-		result += fmt.Sprintf("ID: %d, Задача: %s, Срок: %s, Статус: %s\n",
+		result += fmt.Sprintf("%d) %s, %s, %s\n",
 			task.ID, task.Name, task.ExpDate, status)
 	}
 	return result
