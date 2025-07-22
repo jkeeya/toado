@@ -21,3 +21,12 @@ func requestTaskDelete() tea.Cmd {
 		return requestTaskDeleteMsg{}
 	}
 }
+
+// Пометка таска выполненным
+type requestTaskMarkDoneMsg struct{}
+
+func requestTaskMarkDone() tea.Cmd {
+	return func() tea.Msg {
+		return requestTaskMarkDoneMsg{}
+	}
+}

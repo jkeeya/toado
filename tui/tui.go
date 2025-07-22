@@ -33,10 +33,10 @@ type model struct {
 	taskNameInput     textinput.Model
 	deadlineInput     textinput.Model
 	taskToDeleteInput textinput.Model
+	markDoneInput     textinput.Model
 
 	currentInput    int  // Индекс текущего активного поля (0 - название, 1 - дедлайн)
 	isAwaitingInput bool // Флаг ожидания дополнительного ввода
-
 }
 
 func (m *model) updateTaskList() {
@@ -47,8 +47,8 @@ func NewTeaModel(app cfg.App) *model {
 	taskNameInput := textinput.New()
 	deadlineInput := textinput.New()
 	taskToDeleteInput := textinput.New()
+	markDoneInput := textinput.New()
 
-	// TODO: Вынести инициализацию меню отдельно
 	items := []list.Item{
 		listItem{
 			title:       "Добавить задачу",
@@ -62,6 +62,13 @@ func NewTeaModel(app cfg.App) *model {
 			description: "Удалить задачу",
 			action: func() tea.Cmd {
 				return requestTaskDelete()
+			},
+		},
+		listItem{
+			title:       "Отметить выполненным",
+			description: "Отметить выполненным",
+			action: func() tea.Cmd {
+				return requestTaskMarkDone()
 			},
 		},
 	}
@@ -78,6 +85,7 @@ func NewTeaModel(app cfg.App) *model {
 		taskNameInput:     taskNameInput,
 		deadlineInput:     deadlineInput,
 		taskToDeleteInput: taskToDeleteInput,
+		markDoneInput:     markDoneInput,
 	}
 }
 
@@ -96,12 +104,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Режим ввода: работа с текстовыми полями
 		if m.isAwaitingInput {
 			switch msg.Type {
 			case tea.KeyTab, tea.KeyShiftTab:
-				if !m.taskToDeleteInput.Focused() {
-					// Переключение между полями
+				if !m.taskToDeleteInput.Focused() && !m.markDoneInput.Focused() {
 					if msg.Type == tea.KeyTab {
 						m.currentInput = (m.currentInput + 1) % 2
 					} else if msg.Type == tea.KeyShiftTab {
@@ -116,11 +122,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.deadlineInput.Focus()
 					}
 				}
-			// Добавление задачи
 			case tea.KeyEnter:
-				if m.currentInput == 1 { // Последнее поле
+				if m.currentInput == 1 && !m.taskToDeleteInput.Focused() && !m.markDoneInput.Focused() {
 					m.isAwaitingInput = false
-					// TODO: мб надо изменить уровень абстракции
 					m.app.Repository.AddTask(&Task{
 						Name:    m.taskNameInput.Value(),
 						ExpDate: m.deadlineInput.Value(),
@@ -131,7 +135,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.taskNameInput.Blur()
 					m.deadlineInput.Blur()
 				}
-				// Удаление задачи
 				if m.taskToDeleteInput.Focused() {
 					taskID := m.taskToDeleteInput.Value()
 					id, err := strconv.ParseUint(strings.TrimSpace(taskID), 10, 64)
@@ -144,19 +147,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.taskToDeleteInput.Reset()
 					m.taskToDeleteInput.Blur()
 				}
-
+				if m.markDoneInput.Focused() {
+					taskID := m.markDoneInput.Value()
+					id, err := strconv.ParseUint(strings.TrimSpace(taskID), 10, 64)
+					if err != nil {
+						return m, nil
+					}
+					m.app.Repository.MarkDone(uint(id))
+					m.updateTaskList()
+					m.isAwaitingInput = false
+					m.markDoneInput.Reset()
+					m.markDoneInput.Blur()
+				}
 			}
-
-			// Работа с меню
 		} else {
 			switch msg.Type {
 			case tea.KeyEnter:
 				selectedItem := m.options.SelectedItem().(listItem)
 				cmd = selectedItem.action()
 				return m, cmd
-
 			}
-
 		}
 
 	case requestTaskInputMsg:
@@ -167,12 +177,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isAwaitingInput = true
 		m.taskToDeleteInput.Focus()
 		return m, nil
+	case requestTaskMarkDoneMsg:
+		m.isAwaitingInput = true
+		m.markDoneInput.Focus()
+		return m, nil
 	}
 
 	m.options, cmd = m.options.Update(msg)
 	m.taskNameInput, cmd = m.taskNameInput.Update(msg)
 	m.deadlineInput, cmd = m.deadlineInput.Update(msg)
 	m.taskToDeleteInput, cmd = m.taskToDeleteInput.Update(msg)
+	m.markDoneInput, cmd = m.markDoneInput.Update(msg)
 
 	return m, cmd
 }
@@ -182,14 +197,16 @@ func (m model) View() string {
 		if m.taskToDeleteInput.Focused() {
 			view := "Введите ID задачи для удаления:" + m.taskToDeleteInput.View() + "\n\n"
 			return utils.TasksToString(m.taskList) + view
-		} else {
-			view := "Название задачи:\n" + m.taskNameInput.View() + "\n\n"
-			view += "Дедлайн:\n" + m.deadlineInput.View() + "\n\n"
-			view += "Используйте Tab для переключения между полями. Нажмите Enter для завершения."
-			return view
 		}
+		if m.markDoneInput.Focused() {
+			view := "Введите ID задачи для отметки выполненной:" + m.markDoneInput.View() + "\n\n"
+			return utils.TasksToString(m.taskList) + view
+		}
+		view := "Название задачи:\n" + m.taskNameInput.View() + "\n\n"
+		view += "Дедлайн:\n" + m.deadlineInput.View() + "\n\n"
+		view += "Используйте Tab для переключения между полями. Нажмите Enter для завершения."
+		return view
 	}
 
-	// Отображение списка
 	return utils.TasksToString(m.taskList) + m.options.View()
 }
