@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-	// Инициализируем БД прямо в main, позже создадим интерфейс для хранилищ (если понадобится)
 	var app cfg.App
 	app.DB = db.InitDB("data.db")
 	app.Repository = &db.SQLiteTaskRepository{DB: app.DB}
