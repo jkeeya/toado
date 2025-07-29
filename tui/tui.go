@@ -2,8 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -107,57 +105,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.isAwaitingInput {
 			switch msg.Type {
 			case tea.KeyTab, tea.KeyShiftTab:
-				if !m.taskToDeleteInput.Focused() && !m.markDoneInput.Focused() {
-					if msg.Type == tea.KeyTab {
-						m.currentInput = (m.currentInput + 1) % 2
-					} else if msg.Type == tea.KeyShiftTab {
-						m.currentInput = (m.currentInput - 1 + 2) % 2
-					}
-
-					m.taskNameInput.Blur()
-					m.deadlineInput.Blur()
-					if m.currentInput == 0 {
-						m.taskNameInput.Focus()
-					} else {
-						m.deadlineInput.Focus()
-					}
-				}
+				serveChangeTextInput(&m, msg)
 			case tea.KeyEnter:
-				if m.currentInput == 1 && !m.taskToDeleteInput.Focused() && !m.markDoneInput.Focused() {
-					m.isAwaitingInput = false
-					m.app.Repository.AddTask(&Task{
-						Name:    m.taskNameInput.Value(),
-						ExpDate: m.deadlineInput.Value(),
-					})
-					m.updateTaskList()
-					m.taskNameInput.Reset()
-					m.deadlineInput.Reset()
-					m.taskNameInput.Blur()
-					m.deadlineInput.Blur()
+				// Добавление новой задачи
+				// Убеждаемся, что остальные поля ввода неактивны
+				if !m.taskToDeleteInput.Focused() && !m.markDoneInput.Focused() {
+					serveAddTask(&m)
 				}
+				// Удаление задачи
 				if m.taskToDeleteInput.Focused() {
-					taskID := m.taskToDeleteInput.Value()
-					id, err := strconv.ParseUint(strings.TrimSpace(taskID), 10, 64)
+					err := serveDeleteTask(&m)
 					if err != nil {
 						return m, nil
 					}
-					m.app.Repository.DeleteTask(uint(id))
-					m.updateTaskList()
-					m.isAwaitingInput = false
-					m.taskToDeleteInput.Reset()
-					m.taskToDeleteInput.Blur()
 				}
+				// Пометка задачи выполненной
 				if m.markDoneInput.Focused() {
-					taskID := m.markDoneInput.Value()
-					id, err := strconv.ParseUint(strings.TrimSpace(taskID), 10, 64)
+					err := serveMarkDone(&m)
 					if err != nil {
 						return m, nil
 					}
-					m.app.Repository.MarkDone(uint(id))
-					m.updateTaskList()
-					m.isAwaitingInput = false
-					m.markDoneInput.Reset()
-					m.markDoneInput.Blur()
 				}
 			}
 		} else {
@@ -183,6 +150,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Обновляем состояние всех tea-элементов
 	m.options, cmd = m.options.Update(msg)
 	m.taskNameInput, cmd = m.taskNameInput.Update(msg)
 	m.deadlineInput, cmd = m.deadlineInput.Update(msg)
