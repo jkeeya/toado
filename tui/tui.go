@@ -128,6 +128,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		} else {
+			// Работа со списком опций
 			switch msg.Type {
 			case tea.KeyEnter:
 				selectedItem := m.options.SelectedItem().(listItem)
@@ -150,7 +151,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Обновляем состояние всех tea-элементов
+	// Обновляем состояние всех tui-элементов
 	m.options, cmd = m.options.Update(msg)
 	m.taskNameInput, cmd = m.taskNameInput.Update(msg)
 	m.deadlineInput, cmd = m.deadlineInput.Update(msg)
